@@ -144,7 +144,7 @@ func main() {
 	mustConnGRPC(ctx, &svc.adSvcConn, svc.adSvcAddr)
 
 	r := mux.NewRouter()
-	r.HandleFunc("/", promhttp.InstrumentHandlerCounter(requestCount, svc.homeHandler)).Methods(http.MethodGet, http.MethodHead)
+	r.Path("/").Handler(promhttp.InstrumentHandlerCounter(requestCount, http.HandlerFunc(svc.homeHandler))).Methods(http.MethodGet, http.MethodHead)
 	r.HandleFunc("/product/{id}", svc.productHandler).Methods(http.MethodGet, http.MethodHead)
 	r.HandleFunc("/cart", svc.viewCartHandler).Methods(http.MethodGet, http.MethodHead)
 	r.HandleFunc("/cart", svc.addToCartHandler).Methods(http.MethodPost)
@@ -155,7 +155,7 @@ func main() {
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
 	r.HandleFunc("/robots.txt", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "User-agent: *\nDisallow: /") })
 	r.HandleFunc("/_healthz", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "ok") })
-	r.HandleFunc("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
+	r.Path("/metrics").Handler(promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
 
 	var handler http.Handler = r
 	handler = &logHandler{log: log, next: handler} // add logging
