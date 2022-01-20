@@ -14,7 +14,14 @@
  * limitations under the License.
  */
 
-if(process.env.DISABLE_PROFILER) {
+var projectId = 'shabir-rotation';
+var saKeyFilePath = '/tmp/node-debug-key.json';
+var debugVersion = 'shabir-local-v3';
+const formatMemoryUsage = (data) => `${Math.round(data / 1024 / 1024 * 100) / 100} MB`
+const memoryData = process.memoryUsage()
+
+
+if (process.env.DISABLE_PROFILER) {
   console.log("Profiler disabled.")
 }
 else {
@@ -22,21 +29,30 @@ else {
   require('@google-cloud/profiler').start({
     serviceContext: {
       service: 'currencyservice',
-      version: '1.0.0'
-    }
+      version: debugVersion,
+    },
+    projectId: projectId,
+    keyFilename: saKeyFilePath,
   });
 }
 
 
-if(process.env.DISABLE_TRACING) {
+if (process.env.DISABLE_TRACING) {
   console.log("Tracing disabled.")
 }
 else {
   console.log("Tracing enabled.")
-  require('@google-cloud/trace-agent').start();
+  require('@google-cloud/trace-agent').start({
+    serviceContext: {
+      service: 'currencyservice',
+      version: debugVersion,
+    },
+    projectId: projectId,
+    keyFilename: saKeyFilePath,
+  });
 }
 
-if(process.env.DISABLE_DEBUGGER) {
+if (process.env.DISABLE_DEBUGGER) {
   console.log("Debugger disabled.")
 }
 else {
@@ -44,8 +60,10 @@ else {
   require('@google-cloud/debug-agent').start({
     serviceContext: {
       service: 'currencyservice',
-      version: 'VERSION'
-    }
+      version: debugVersion,
+    },
+    projectId: projectId,
+    keyFilename: saKeyFilePath,
   });
 }
 
@@ -72,7 +90,7 @@ const logger = pino({
 /**
  * Helper function that loads a protobuf file.
  */
-function _loadProto (path) {
+function _loadProto(path) {
   const packageDefinition = protoLoader.loadSync(
     path,
     {
@@ -90,7 +108,7 @@ function _loadProto (path) {
  * Helper function that gets currency data from a stored JSON file
  * Uses public data from European Central Bank
  */
-function _getCurrencyData (callback) {
+function _getCurrencyData(callback) {
   const data = require('./data/currency_conversion.json');
   callback(data);
 }
@@ -98,7 +116,7 @@ function _getCurrencyData (callback) {
 /**
  * Helper function that handles decimal/fractional carrying
  */
-function _carry (amount) {
+function _carry(amount) {
   const fractionSize = Math.pow(10, 9);
   amount.nanos += (amount.units % 1) * fractionSize;
   amount.units = Math.floor(amount.units) + Math.floor(amount.nanos / fractionSize);
@@ -109,17 +127,17 @@ function _carry (amount) {
 /**
  * Lists the supported currencies
  */
-function getSupportedCurrencies (call, callback) {
+function getSupportedCurrencies(call, callback) {
   logger.info('Getting supported currencies...');
   _getCurrencyData((data) => {
-    callback(null, {currency_codes: Object.keys(data)});
+    callback(null, { currency_codes: Object.keys(data) });
   });
 }
 
 /**
  * Converts between currencies
  */
-function convert (call, callback) {
+function convert(call, callback) {
   try {
     _getCurrencyData((data) => {
       const request = call.request;
@@ -155,7 +173,7 @@ function convert (call, callback) {
 /**
  * Endpoint for health checks
  */
-function check (call, callback) {
+function check(call, callback) {
   callback(null, { status: 'SERVING' });
 }
 
@@ -163,20 +181,40 @@ function check (call, callback) {
  * Starts an RPC server that receives requests for the
  * CurrencyConverter service at the sample server port
  */
-function main () {
+function main() {
   logger.info(`Starting gRPC server on port ${PORT}...`);
   const server = new grpc.Server();
-  server.addService(shopProto.CurrencyService.service, {getSupportedCurrencies, convert});
-  server.addService(healthProto.Health.service, {check});
+  server.addService(shopProto.CurrencyService.service, { getSupportedCurrencies, convert });
+  server.addService(healthProto.Health.service, { check });
 
+  setInterval(() => { printMemory(); }, 60000);
   server.bindAsync(
     `0.0.0.0:${PORT}`,
     grpc.ServerCredentials.createInsecure(),
-    function() {
+    function () {
       logger.info(`CurrencyService gRPC server started on port ${PORT}`);
       server.start();
     },
-   );
+  );
 }
+
+function printMemory() {
+  const memoryUsage = {
+    rss: `${formatMemoryUsage(memoryData.rss)} -> Resident Set Size - total memory allocated for the process execution`,
+    heapTotal: `${formatMemoryUsage(memoryData.heapTotal)} -> total size of the allocated heap`,
+    heapUsed: `${formatMemoryUsage(memoryData.heapUsed)} -> actual memory used during the execution`,
+    external: `${formatMemoryUsage(memoryData.external)} -> V8 external memory`,
+  }
+  console.log(memoryUsage)
+}
+
+
+
+// const express = require('express')
+// const app = express()
+// app.use(require('express-status-monitor')());
+// app.listen(8081, () => {
+//   console.log(`Example app listening at http://localhost:${8081}`)
+// })
 
 main();
