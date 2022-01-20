@@ -187,7 +187,7 @@ function main() {
   server.addService(shopProto.CurrencyService.service, { getSupportedCurrencies, convert });
   server.addService(healthProto.Health.service, { check });
 
-  setInterval(() => { printMemory(); }, 60000);
+  // setInterval(() => { printMemory(); }, 60000);
   server.bindAsync(
     `0.0.0.0:${PORT}`,
     grpc.ServerCredentials.createInsecure(),
