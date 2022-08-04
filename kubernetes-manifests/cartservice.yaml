@@ -40,7 +40,6 @@ spec:
             drop:
               - all
           privileged: false
-          readOnlyRootFilesystem: true
         image: cartservice
         ports:
         - containerPort: 7070
